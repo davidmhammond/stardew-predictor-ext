@@ -1,0 +1,3 @@
+[submodule "src/stardew-predictor"]
+	path = src/stardew-predictor
+	url = https://github.com/MouseyPounds/stardew-predictor.git

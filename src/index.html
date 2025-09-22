@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Stardew Predictor</title>
+		
+		<meta charset="UTF-8" />
+		<meta property="og:title" content="Stardew Predictor" />
+		<meta property="og:description" content="An app which simulates the pRNG in Stardew Valley, reads a save file, and predicts some future events." />
+		<meta property="og:image" content="https://mouseypounds.github.io/stardew-predictor/og-embed-image.png" />
+		<meta property="twitter:image" content="https://mouseypounds.github.io/stardew-predictor/og-embed-image.png" />
+		<meta name="theme-color" content="#ffe0b0">
+		<meta name="author" content="MouseyPounds" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		
+		<link rel="stylesheet" type="text/css" href="stardew-predictor/stardew-predictor.css" />
+		<link rel="stylesheet" type="text/css" href="stardew-predictor/wallpaper.css" />
+		<link rel="stylesheet" type="text/css" href="stardew-predictor/shirt.css" />
+		<link rel="stylesheet" type="text/css" href="stardew-predictor/cactis.css" />
+		<link rel="stylesheet" type="text/css" href="stardew-predictor-ext.css" />
+		<link rel="icon" type="image/png" href="stardew-predictor/favicon_p.png" />
+		
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+		<script>window.jQuery || document.write('<script src="stardew-predictor/jquery-3.2.1.min.js"><\/script>')</script>
+		<script src="stardew-predictor/cs-random.js"></script>
+		<script src="stardew-predictor.js?v=5.0.8"></script>
+		<script id="stardew-predictor-ext-settings" type="application/json">
+			{
+				"extensions": [
+					"bundles",
+					"calendar",
+					"cart",
+					"friendship",
+					"inventories",
+					"maps",
+					"notes",
+					"options",
+					"quests",
+					"recipes",
+					"schedules",
+					"skills"
+				]
+			}
+		</script>
+		<script src="stardew-predictor-ext.js" type="module"></script>
+		<script src="stardew-predictor/BigInteger.min.js"></script>
+		<script src="stardew-predictor/xxhash.min.js"></script>
+		<script src="stardew-predictor/pako.min.js"></script>
+		
+	</head>
+	<body>
+		<div id="TOC">
+			<h1>Navigation</h1>
+			<div id="TOC-details">
+			</div>
+		</div>
+		
+		<div id="header" class="panel">
+			<h1>Stardew Predictor</h1>
+			<h2 id="sec_about">About</h2>
+			<p>This app simulates the random number generator used in <a href="https://stardewvalley.net/">Stardew Valley</a> and makes "predictions" about 
+		the game after reading the save file. The information predicted includes special mine levels 
+		(e.g. mushroom floor &amp; infestations), random items sold by some vendors, results from cracking geodes, the train schedule, and more.
+		A useful companion tool is <a href="https://www.nexusmods.com/stardewvalley/mods/6614">BlaDe's Map Predictor</a> which handles things such as artifact digging, giant crops, and mine ladders.</p>
+			<p>Most changed &amp; added content from version 1.6 is supported. <span class="strong note">While the app tries to detect the version in the save and use
+		prediction logic specific to that version, it will spoil some new features regardless. You have been warned.</span> </p>
+			<p>The app is written in Javascript and uses <a href="https://jquery.com/">jQuery</a>, <a href="https://github.com/peterolson/BigInteger.js">BigInteger.js</a>, <a href="https://github.com/pierrec/js-xxhash">JS xxHash</a>, <a href="https://github.com/substack/semver-compare">semver-compare</a>, and <a href="https://github.com/nodeca/pako">pako</a>; it is hosted on GitHub Pages at <a href="https://mouseypounds.github.io/stardew-predictor/">https://mouseypounds.github.io/stardew-predictor/</a> and the source code repository is <a href="https://github.com/MouseyPounds/stardew-predictor">https://github.com/MouseyPounds/stardew-predictor</a>. 
+		Please report any bugs, suggestions, or other feedback to <a href="https://forums.stardewvalley.net/threads/web-apps-stardew-checkup-predictor-and-fair-helper.28393/">the topic in the Stardew official forums</a> or to <span class="code">@mouseypounds</span> on Discord.</p>
+		</div>
+		
+		<div id="input-container" class="panel">
+			<h2 id="sec_save_file">Save File</h2>
+			<p>Select a save file to check: <input type="file" id="file_select" /></p>
+			<p>Please use the full save file named with your farmer's name (or farm name) and an ID number (e.g. <span class="path">Fred_148093307</span>); do not use the <span class="path">SaveGameInfo</span> file as it does not contain all the necessary information.
+			<p>Default save file locations are:
+			<ul><li>Windows: <span class="path">%AppData%\StardewValley\Saves\</span></li>
+				<li>Mac OSX &amp; Linux: <span class="path">~/.config/StardewValley/Saves/</span></li>
+				<li>Proton Steam (Ubuntu): <span class="path">~/.steam/debian-installation/steamapps/compatdata/413150/pfx/drive_c/users/steamuser/AppData/Roaming/StardewValley/Saves/</span></li>
+			</ul>
+		
+			<h3 id="advanced_usage">Advanced Usage</h3>
+			<div id="advanced_param" class="collapsible">
+				<p>The vast majority of players will just load their save above and not worry about anything else. However occasionally someone may want to check out certain game seeds and/or override some of the values in their save. This is done by adding URL parameters which are explained below.</p>
+				<button id="advanced_toggle" type="button">Show</button>
+				<div class="initial_hide">
+					<p>Valid URL parameters are listed below; each can be set via either a descriptive long name or a short abbreviation (neither of which are case-sensitive.) As an example, if one wanted to run Predictor with a game seed of <span class="code">42069</span>, set the days played to <span class="code">250</span>, and mark the desert as unlocked they could use the following URL:<br/><span class="code" id="advanced_example">?id=42069&amp;dp=250&amp;desertunlocked=1</span>
+					<p>The URL for the current prediction with all non-default parameters set (useful for sharing) is:<br/><span class="code" id="share_URL">(N/A)</span>
+					<table class="output"><tr><th>Long Name</th><th>Abbreviation</th><th>Type</th><th>Description</th></tr>
+						<tr><td class="code">version</td><td class="code">v</td><td>Semver identifier<br/>e.g. <span class="code">1.6.0</span></td><td class="long_list">Sets what Stardew version to use for predictions</td></tr>
+						<tr><td class="code">gameID</td><td class="code">id</td><td>Integer</td><td class="long_list">Sets the game seed</td></tr>
+						<tr><td class="code">daysPlayed</td><td class="code">dp</td><td>Integer</td><td class="long_list">Sets days played which changes where calendar views start</td></tr>
+						<tr><td class="code">dayAdjust</td><td class="code">da</td><td>Integer</td><td class="long_list">Offsets days played by the given amount to deal with old multiplayer bugs</td></tr>
+						<tr><td class="code">dailyLuck</td><td class="code">dl</td><td>Float</td><td class="long_list">Sets daily luck for garbage checks; will be forced into range [-0.1, 0.1]<br/>Note, this is raw luck before special charm is taken into account</td></tr>
+						<tr><td class="code">luckLevel</td><td class="code">ll</td><td>Integer</td><td class="long_list">Sets luck buff level (from food, rings, etc.)</td></tr>
+						<tr><td class="code">geodesCracked</td><td class="code">gc</td><td>Integer</td><td class="long_list">Sets number of geodes cracked by the host</td></tr>
+						<tr><td class="code">mysteryBoxesOpened</td><td class="code">mb</td><td>Integer</td><td class="long_list">Sets number of mystery boxes opened by the host</td></tr>
+						<tr><td class="code">ticketPrizesClaimed</td><td class="code">pt</td><td>Integer</td><td class="long_list">Sets number of prize ticket rewards claimed by the host</td></tr>
+						<tr><td class="code">timesEnchanted</td><td class="code">te</td><td>Integer</td><td class="long_list">Sets number of times enchanted by the host</td></tr>
+						<tr><td class="code">trashCansChecked</td><td class="code">tc</td><td>Integer</td><td class="long_list">Sets number of trash cans checked by the host</td></tr>
+						<tr><td class="code">timesFedRaccoons</td><td class="code">tfr</td><td>Integer</td><td class="long_list">Sets number of times the raccoons have been helped</td></tr>
+						<tr><td class="code">deepestMineLevel</td><td class="code">dml</td><td>Integer</td><td class="long_list">Sets deepest mine level (will max at 120)</td></tr>
+						<tr><td class="code">visitsUntilY1Guarantee</td><td class="code">vg</td><td>Integer</td><td class="long_list">Sets the countdown for guaranteed red cabbage seed at cart;<br/>use -1 to disable and -99 to reroll</td></tr>
+						<tr><td class="code">canHaveChildren</td><td class="code">chc</td><td>1 for true, 0 for false</td><td class="long_list">Can host/spouse have children (legacy for predicting 1.2 night events)</td></tr>
+						<tr><td class="code">quarryUnlocked</td><td class="code">qu</td><td>1 for true, 0 for false</td><td class="long_list">Quarry unlocked and quarry mine visited</td></tr>
+						<tr><td class="code">desertUnlocked</td><td class="code">du</td><td>1 for true, 0 for false</td><td class="long_list">Desert unlocked</td></tr>
+						<tr><td class="code">greenhouseUnlocked</td><td class="code">gu</td><td>1 for true, 0 for false</td><td class="long_list">Greenhouse unlocked (i.e. repaired)</td></tr>
+						<tr><td class="code">ccComplete</td><td class="code">cc</td><td>1 for true, 0 for false</td><td class="long_list">Community Center restored</td></tr>
+						<tr><td class="code">jojaComplete</td><td class="code">jc</td><td>1 for true, 0 for false</td><td class="long_list">Joja Community Development complete</td></tr>
+						<tr><td class="code">theaterUnlocked</td><td class="code">tu</td><td>1 for true, 0 for false</td><td class="long_list">Theater unlocked (non-Joja version)</td></tr>
+						<tr><td class="code">hasFurnaceRecipe</td><td class="code">hfr</td><td>1 for true, 0 for false</td><td class="long_list">Players have furnace recipe</td></tr>
+						<tr><td class="code">hasSpecialCharm</td><td class="code">hsc</td><td>1 for true, 0 for false</td><td class="long_list">Players have the special luck charm</td></tr>
+						<tr><td class="code">hasGarbageBook</td><td class="code">hgb</td><td>1 for true, 0 for false</td><td class="long_list">Players have read <span class="book">The Alleyway Buffet</span></td></tr>
+						<tr><td class="code">gotMysteryBook</td><td class="code">gmb</td><td>1 for true, 0 for false</td><td class="long_list">Players have gotten <span class="book">Book of Mysteries</span> from Mystery Boxes</td></tr>
+						<tr><td class="code">leoMoved</td><td class="code">leo</td><td>1 for true, 0 for false</td><td class="long_list">Whether Leo has moved to the Valley</td></tr>
+						<tr><td class="code">hardmodeMines</td><td class="code">hm</td><td>1 for true, 0 for false</td><td class="long_list">Mines are set for hard difficulty</td></tr>
+						<tr><td class="code">qiCropsActive</td><td class="code">qc</td><td>1 for true, 0 for false</td><td class="long_list">Qi Crops special order is active</td></tr>
+						<tr><td class="code">useLegacyRandom</td><td class="code">leg</td><td>1 for true, 0 for false</td><td class="long_list">Save uses Legacy RNG seeding</td></tr>
+					</table>
+				</div>
+			</div>
+			
+		</div>
+		
+		<div id="progress-container" class="panel">
+			<h2 id="sec_working">Working...</h2>
+			<progress id="progress" value="0" max="100"></progress>
+			<div id="parse-error"></div>
+		</div>
+		
+		<div id="output-container" class="panel">
+			<h2 id="sec_results">Results</h2>
+			<p class="note" id="results-note"></p>
+			<output id="out-summary"> </output>
+			<div id="main-tab-container" class="tab-container">
+				<div id="tabset-div" class="tabset">
+				</div>
+				
+				<div class="tab-panels">
+					<section id="sec-options" class="tab-panel">
+						<h3>Options</h3>
+						<p class="intro" id="options-intro"> </p>
+						<p class="note" id="options-note"></p>
+						<output id="out-options"> </output>
+					</section>
+					
+					<section id="sec-book" class="tab-panel">
+						<h3>Bookseller</h3>
+						<p class="intro" id="book-intro">This tab predicts two things: which two days the Bookseller will appear each month, and some of the items available for purchase on those days. Results will only show those books which are randomly chosen. Other items in the shop are either always present (e.g. <span class="book">Price Catalogue</span>) or have a non-random trigger (e.g. <span class="book">Queen of Sauce Cookbook</span> which appears after 100 walnuts have been found) and are not included.</p>
+						<p class="note" id="book-note"></p>
+						<fieldset id="book-search">
+							<input type="text" id="book-search-text" class="search">
+							<button id="book-search-button" type="button" class="search">Search</button><br />
+							Search Range: <select id="book-search-range">
+								<option value="1">1 year</option>
+								<option value="2" selected>2 years</option>
+								<option value="3">3 years</option>
+								<option value="5">5 years</option>
+								<option value="10">10 years</option>
+							</select><br />
+							<input type="checkbox" id="book-search-all"> Start search from Spring 1, Year 1 instead of current day
+						</fieldset>
+						<fieldset id="book-buttons"><div class="buttons">
+							<button id="book-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="book-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="book-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="book-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="book-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-book"> </output>
+					</section>
+					
+					<section id="sec-bundles" class="tab-panel">
+						<h3>Bundles</h3>
+						<p class="intro" id="bundles-intro"> </p>
+						<p class="note" id="bundles-note"></p>
+						<output id="out-bundles"> </output>
+					</section>
+					
+					<section id="sec-calendar" class="tab-panel">
+						<h3>Calendar</h3>
+						<p class="intro" id="calendar-intro"> </p>
+						<p class="note" id="calendar-note"></p>
+						<output id="out-calendar"> </output>
+					</section>
+					
+					<section id="sec-cj" class="tab-panel">
+						<h3>CalicoJack</h3>
+						<p class="intro" id="cj-intro">Predicted results from playing the <a href="https://stardewvalleywiki.com/CalicoJack">Blackjack-like card game</a> at the <a href="https://stardewvalleywiki.com/Casino">Oasis Casino</a>. The results tell you what actions to take to win the game if possible. The game does not keep a cumulative counts of plays in the save, but instead uses a fresh counter every play session. As a result, the layout of this tab is a little different with two sets of navigation buttons. The top set lets you change the day of prediction, and the bottom set changes number of games played in the current session.</p>
+						<p>Since one can bet "Double or Nothing" following a win, coins can be quickly accumulated during long win streaks although one must be careful to avoid overflowing their coin count into the negatives. If starting from nothing, overflow would happen on the 22nd consecutive win.</p>
+						<p>Stardew 1.6 added a very rare chance for the dealer to draw a card worth 999 and results in the player winning 3 times their bet. Predictor should indicate when this is likely to happen (the roll is modified by both daily luck and luck buffs) but it does not currently attempt to search out this result.</p>
+						<p class="note" id="cj-note"></p>
+						<fieldset id="cj-d-buttons"><div class="buttons">
+							<button id="cj-d-prev-week" type="button" class="browse">&lt;&lt; Previous Week</button>
+							<button id="cj-d-prev-day" type="button" class="browse">&lt; Previous Day</button>
+							<button id="cj-d-reset" type="button" class="browse">Reset Day</button>
+							<button id="cj-d-next-day" type="button" class="browse">Next Day &gt;</button>
+							<button id="cj-d-next-week" type="button" class="browse">Next Week &gt;&gt;</button>
+							</div></fieldset>
+							<fieldset id="cj-g-buttons"><div class="buttons">
+							<button id="cj-g-prev-100" type="button" class="browse">&lt;&lt; Previous 100</button>
+							<button id="cj-g-prev" type="button" class="browse">&lt; Previous 20</button>
+							<button id="cj-g-reset" type="button" class="browse">Reset Games</button>
+							<button id="cj-g-next" type="button" class="browse">Next 20 &gt;</button>
+							<button id="cj-g-next-100" type="button" class="browse">Next 100 &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-cj"> </output>
+					</section>
+					
+					<section id="sec-crane" class="tab-panel">
+						<h3>Crane Game</h3>
+						<p class="intro" id="crane-intro">This calendar shows the presence of the worst villain in Stardew Valley, the green shirt man
+						who hogs the crane game at the <a href="https://stardewvalleywiki.com/Movie_Theater">Movie Theater.</a> He will always be there
+						on your first theater visit and also after every movie. His presence before movies (for later visits) is predictable and shown below.</p>
+						<fieldset id="crane-buttons"><div class="buttons">
+							<button id="crane-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="crane-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="crane-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="crane-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="crane-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-crane"> </output>
+					</section>
+					
+					<section id="sec-makeover" class="tab-panel">
+						<h3>Desert Festival</h3>
+						<p class="intro" id="makeover-intro">This is for various predictable details of the Desert Festival.</p>
+						<ul>
+							<li>For the shop vendors, the app assumes Kent is available only after year 1 and chooses Leo's availability based upon his status at the time of the save. Additionally, the character pool's order is somewhat volatile and will almost always change with marriage status changes because of NPCs moving to or from the farm. Predictor does its best but this is an area where predictions will sometimes be wrong.</li>
+							<li>The Free "Cactis" image should show the correctly rolled parts but it won't look exactly like the in-game sprite.</li>
+							<li>The makeover outfits received from Emily and Sandy have a 75% chance to roll unique to each player and a 25% chance to roll a generic male/female variant. The app will show the specific result for all players in the game if possible. Note that the game has protections against giving you an outfit which has the same shirt or hat as you are currently wearing; the app does not currently account for this possibility so will sometimes misidentify the outfit if you are wearing makeover items already.</li>
+						</ul>
+						<p class="note" id="makeover-note"></p>
+						<fieldset id="makeover-buttons"><div class="buttons">
+							<button id="makeover-prev" type="button" class="browse">&lt; Previous Year</button>
+							<button id="makeover-reset" type="button" class="browse">Reset</button>
+							<button id="makeover-next" type="button" class="browse">Next Year &gt;</button>
+						</div></fieldset>
+						<output id="out-makeover"> </output>
+					</section>
+					
+					<section id="sec-enchant" class="tab-panel">
+						<h3>Enchantments</h3>
+						<p class="intro" id="enchant-intro">Predicted results from enchanting tools and weapons at the
+						Forge in the Volcano. The number of times enchanted is a cumulative count across all items; forging a weapon with a Galaxy Soul will also increment this count.
+						Note that in multiplayer, each player's enchant count is tracked separately; for multiplayer saves there is a drop-down menu which will let you choose which player to use for predictions. This will only affect the highlighting for pre-1.6 saves but actually affects the predictions for 1.6 or later. Searching is not currently supported.</p>
+						<p>Beginning in version 1.5.2, the two previous enchantments on an item are excluded from the pool of outcomes. The results are a little bit confusing because of this as there can be as many as 3 possible outcomes listed. The first one is guaranteed if the weapon has never been enchanted, and hovering over the "..." will show a tooltip with some greater detail. Additionally, hoes and watering cans are assumed to be Iridium level so that the "Reaching" enchantment is available.</p>
+						<p>Pan enchantments were only introduced in Stardew 1.6 but will show for all versions.</p>
+						<p class="note" id="enchant-note"></p>
+						<fieldset id="enchant-player">
+							Select Player: <select id="enchant-player-select" class="player">
+							</select><br />
+						</fieldset>
+						<fieldset id="enchant-buttons"><div class="buttons">
+							<button id="enchant-prev-big" type="button" class="browse">&lt;&lt; Previous 100</button>
+							<button id="enchant-prev" type="button" class="browse">&lt; Previous 20</button>
+							<button id="enchant-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="enchant-next" type="button" class="browse">Next 20 &gt;</button>
+							<button id="enchant-next-big" type="button" class="browse">Next 100 &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-enchant"> </output>
+					</section>
+					
+					<section id="sec-friendship" class="tab-panel">
+						<h3>Friendship</h3>
+						<p class="intro" id="friendship-intro"></p>
+						<table class="output">
+							<colgroup><col></colgroup>
+							<colgroup><col style="border-left: 2px solid #000;"><col><col><col></colgroup>
+							<colgroup><col style="border-left: 2px solid #000;"><col><col><col></colgroup>
+							<colgroup><col style="border-left: 2px solid #000;"><col><col><col></colgroup>
+							<thead>
+								<tr>
+									<th></th>
+									<th colspan="4">Weekly Gift</th>
+									<th colspan="4">Winter Star (x5)</th>
+									<th colspan="4">Birthday (x8)</th>
+								</tr>
+								<tr>
+									<th>Taste</th>
+									<th>Normal</th><th>Silver</th><th>Gold</th><th>Iridium</th>
+									<th>Normal</th><th>Silver</th><th>Gold</th><th>Iridium</th>
+									<th>Normal</th><th>Silver</th><th>Gold</th><th>Iridium</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>Love</td>
+									<td>+80</td><td style="background: #edeff2;">+88</td><td style="background: #ffff8c;">+100</td><td style="background: #edb3e2;">+120</td>
+									<td>+400</td><td style="background: #edeff2;">+440</td><td style="background: #ffff8c;">+500</td><td style="background: #edb3e2;">+600</td>
+									<td>+640</td><td style="background: #edeff2;">+704</td><td style="background: #ffff8c;">+800</td><td style="background: #edb3e2;">+960</td>
+								</tr>
+								<tr>
+									<td>Like</td>
+									<td>+45</td><td style="background: #edeff2;">+49</td><td style="background: #ffff8c;">+56</td><td style="background: #edb3e2;">+67</td>
+									<td>+225</td><td style="background: #edeff2;">+247</td><td style="background: #ffff8c;">+281</td><td style="background: #edb3e2;">+337</td>
+									<td>+360</td><td style="background: #edeff2;">+396</td><td style="background: #ffff8c;">+450</td><td style="background: #edb3e2;">+540</td>
+								</tr>
+								<tr>
+									<td>Neutral</td>
+									<td>+20</td><td style="background: #edeff2;">+22</td><td style="background: #ffff8c;">+25</td><td style="background: #edb3e2;">+30</td>
+									<td>+100</td><td style="background: #edeff2;">+110</td><td style="background: #ffff8c;">+125</td><td style="background: #edb3e2;">+150</td>
+									<td>+160</td><td style="background: #edeff2;">+176</td><td style="background: #ffff8c;">+200</td><td style="background: #edb3e2;">+240</td>
+								</tr>
+							</tbody>
+						</table>
+						
+						<p class="note" id="friendship-note"></p>
+						<output id="out-friendship"> </output>
+					</section>
+					
+					<section id="sec-trash" class="tab-panel">
+						<h3>Garbage Cans</h3>
+						<p class="intro" id="trash-intro">This calendar shows the prediction of some <a href="https://stardewvalleywiki.com/Garbage_Can">Garbage Can</a> loot.
+						While luck plays a big role in what you find in cans, there is still a good amount of predictability. Most notably, the 
+						<a href="https://stardewvalleywiki.com/Garbage_Hat">Garbage Hat</a> and <a href="https://stardewvalleywiki.com/Trash_Catalogue">Trash Catalogue</a> are nearly guaranteed; if they show up on this list, it should happen in game.
+						Additionally, some results are highly reliable because the roll is good enough to pass the check even with worst possible luck. Some caveats about these
+						predictions are listed below: </p>
+						<ul>
+							<li>Some item spawns (e.g. hat and catalogue) will only trigger if you have checked a minimum number of cans; the app will use the host's
+							count of trash cans checked when making predictions, but this value can be overridden with a URL parameter. Other spawns rely on progression
+							markers such as desert access or deepest mine level; these also will check the host's save values (and can also be overridden).</li>
+							<li>Daily luck can play a factor in garbage loot in terms of both whether something drops and what that something is. By default the
+							app assumes worst possible daily luck, but the luck value can also be overridden by a URL parameter.</li>
+							<li>The Qi's Crop Special Order will cause an additional RNG check early in the process. The app will try to detect this quest and adjust accordingly, but this roll can also be forced on or off with a URL parameter. If the quest is active, it will show on all predictions including past and future months.</li>
+						</ul>
+						<fieldset id="trash-buttons"><div class="buttons">
+							<button id="trash-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="trash-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="trash-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="trash-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="trash-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-trash"> </output>
+					</section>
+					
+					<section id="sec-gembirds" class="tab-panel">
+						<h3>Gem Bird Types</h3>
+						<p class="intro" id="gembirds-intro">This shows which types of Gem Birds will appear in each Island location; this could be used to complete the jungle gem shrine puzzle before all birds are encountered in-game.</p>
+						<p class="note" id="gembirds-note"></p>
+						<output id="out-gembirds"> </output>
+					</section>
+					
+					<section id="sec-geode" class="tab-panel">
+						<h3>Geode Processing</h3>
+						<p class="intro" id="geode-intro">Predicted results from cracking open all types of
+						<a href="https://stardewvalleywiki.com/Minerals#Geodes">geodes</a> at Clint's
+						<a href="https://stardewvalleywiki.com/Blacksmith">Blacksmith Shop</a>. The number of geodes opened is a cumulative count across all types. Results can
+						be browsed twenty at a time or searched using a case-insensitive substring (regular expression wildcards are allowed.)
+						Note that in multiplayer, each player's geode count is tracked separately; the browse results are initially set and highlighted
+						based on the host's count. Note also that while Mystery Boxes have their own counter and item pool (and are thus predicted in a different section of the app) having Clint open a Mystery Box of any type will also increment the geode counter.</p>
+						<p>Artifact Troves and Golden Coconuts are technically geode types but have their own special item pools. When opening Golden Coconuts there is a small chance for the chosen item to be replaced by the Golden Helmet; browsing results will show this potential replacement, but the player will only actually receive the hat if they have not previously gotten one. Similarly, during the Qi's Crop Challenge, all geode types have a chance to drop either 1 or 5 Qi Beans instead of their normal items; this is also shown on the browsing results.</p>
+						<p>Artifacts and minerals which need to be donated to the museum will be marked in the results, however the Fossilized Skull (which can be found in Golden Coconuts and donated to the Ginger Island Field Office) does not have donation status checked.</p>
+						<p>Stardew 1.5 introduced a Geode Crusher machine which opens the basic 4 geode types. This machine uses the same RNG but in version 1.5 its counter is offset by 1. For example if you have already crushed 12 geodes, the next geode cracked by Clint will use the results from line 13, but the next geode cracked by the Crusher will use the results from line 12. This discrepancy was fixed in version 1.6</p>
+						<p class="note" id="geode-note"></p>
+						<fieldset id="geode-player">
+							Select Player: <select id="geode-player-select" class="player">
+							</select><br />
+						</fieldset>
+						<fieldset id="geode-search">
+							<input type="text" id="geode-search-text" class="search">
+							<button id="geode-search-button" type="button" class="search">Search</button><br />
+							Search Range: <select id="geode-search-range">
+								<option value="100">100 geodes</option>
+								<option value="200" selected>200 geodes</option>
+								<option value="500">500 geodes</option>
+								<option value="1000">1000 geodes</option>
+							</select><br />
+							<input type="checkbox" id="geode-search-all"> Start search from first geode instead of current geode
+						</fieldset>
+						<fieldset id="geode-buttons"><div class="buttons">
+							<button id="geode-prev-100" type="button" class="browse">&lt;&lt; Previous 100</button>
+							<button id="geode-prev" type="button" class="browse">&lt; Previous 20</button>
+							<button id="geode-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="geode-next" type="button" class="browse">Next 20 &gt;</button>
+							<button id="geode-next-100" type="button" class="browse">Next 100 &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-geode"> </output>
+					</section>
+					
+					<section id="sec-inventories" class="tab-panel">
+						<h3>Inventories</h3>
+						<p class="intro" id="inventories-intro"></p>
+						<p class="note" id="inventories-note"></p>
+						<output id="out-inventories"> </output>
+					</section>
+					
+					<section id="sec-krobus" class="tab-panel">
+						<h3>Krobus' Sewer Shop Stock</h3>
+						<p class="intro" id="Krobus-intro">Partial inventory list for <a href="https://stardewvalleywiki.com/Krobus">Krobus</a> who sells items
+						in the <a href="https://stardewvalleywiki.com/Sewers">Sewers</a>. While his stock is static on most days, there is a random
+						fish sold on Wednesdays and a random cooked dish sold on Saturdays; these items can be predicted and are listed below.
+						Results can be browsed by week or searched using a case-insensitive substring (regular expression wildcards are allowed.)</p>
+						<fieldset id="krobus-search">
+							<input type="text" id="krobus-search-text" class="search">
+							<button id="krobus-search-button" type="button" class="search">Search</button><br />
+							Search Range: <select id="krobus-search-range">
+								<option value="1">1 year</option>
+								<option value="2" selected>2 years</option>
+								<option value="3">3 years</option>
+								<option value="5">5 years</option>
+								<option value="10">10 years</option>
+							</select><br />
+							<input type="checkbox" id="krobus-search-all"> Start search from Spring 1, Year 1 instead of current day
+						</fieldset>
+						<fieldset id="krobus-buttons"><div class="buttons">
+							<button id="krobus-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="krobus-prev-week" type="button" class="browse">&lt; Previous Week</button>
+							<button id="krobus-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="krobus-next-week" type="button" class="browse">Next Week &gt;</button>
+							<button id="krobus-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-krobus"> </output>
+					</section>
+					
+					<section id="sec-maps" class="tab-panel">
+						<h3>Maps</h3>
+						<p class="intro" id="maps-intro"> </p>
+						<fieldset id="maps-search">
+							<label>Location: <select id="maps-location" class="autobrowse"></select></label>
+						</fieldset>
+						<fieldset id="maps-buttons"><div class="buttons">
+							<button id="maps-prev-hour" type="button" class="browse">&lt;&lt; Previous Hour</button>
+							<button id="maps-prev-time" type="button" class="browse">&lt; Previous Time</button>
+							<button id="maps-reset" type="button" class="browse">Reset Time</button>
+							<button id="maps-next-time" type="button" class="browse">Next Time &gt;</button>
+							<button id="maps-next-hour" type="button" class="browse">Next Hour &gt;&gt;</button>
+							<input type="hidden" id="maps-current" value="" />
+						</div></fieldset>
+						<output id="out-maps"> </output>
+						<div id="maps-planner" class="sidebar-right">
+							<div id="async-maps"></div>
+							<div id="maps-editor">
+								<div class="tools">
+									<div class="button-group left">
+										<button type="button" id="maps-tool-inspect" class="maps-toolbar-button maps-tool active" value="inspect" title="Inspect (I) - Get information about a feature or tile"></button>
+										<button type="button" id="maps-tool-select" class="maps-toolbar-button maps-tool" value="select" title="Multi-Select (S) - Select multiple features to move, copy, erase, or transform"></button>
+										<button type="button" id="maps-tool-move" class="maps-toolbar-button maps-tool" value="move" title="Move (M) - Reposition a feature"></button>
+										<button type="button" id="maps-tool-copy" class="maps-toolbar-button maps-tool" value="copy" title="Copy (C) - Duplicate a feature"></button>
+										<button type="button" id="maps-tool-erase" class="maps-toolbar-button maps-tool" value="erase" title="Erase (E) - Remove a feature or attachment"></button>
+										<button type="button" id="maps-tool-transform" class="maps-toolbar-button maps-tool" value="transform" title="Transform (T) - Change a feature's rotation or variation"></button>
+										<button type="button" id="maps-tool-paint" class="maps-toolbar-button maps-tool" value="paint" title="Paint (P) - Change a feature's color or skin"></button>
+									</div>
+									<div class="button-group left">
+										<button type="button" id="maps-button-undo" class="maps-toolbar-button" title="Undo (Ctrl + Z)"></button>
+										<button type="button" id="maps-button-redo" class="maps-toolbar-button" title="Redo (Ctrl + Y)"></button>
+										<button type="button" id="maps-button-save" class="maps-toolbar-button" title="Save Plan (Ctrl + S)"></button>
+									</div>
+									<div class="button-group below">
+										<span class="search-adorned" title="Search catalogue items">
+											<input type="text" id="maps-catalogue-search">
+											<button type="button" id="maps-catalogue-search-button"></button>
+										</span>
+									</div>
+									<div class="button-group right">
+										<button type="button" id="maps-button-fullView" class="maps-toolbar-button" title="Full Planner View (F)"></button>
+									</div>
+								</div>
+								<div class="tab-container">
+									<div class="tabset">
+										<input type="radio" name="maps-tabset" id="maps-tab-options" checked>
+										<label for="maps-tab-options">Options</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-info">
+										<label for="maps-tab-info">Info</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-search" style="display: none;">
+										<label for="maps-tab-search" style="display: none;">Search Results</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-crops">
+										<label for="maps-tab-crops">Crops</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-foraging">
+										<label for="maps-tab-foraging">Foraging</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-equipment">
+										<label for="maps-tab-equipment">Equipment</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-buildings">
+										<label for="maps-tab-buildings">Buildings</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-decoration">
+										<label for="maps-tab-decoration">Decoration</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-furniture">
+										<label for="maps-tab-furniture">Furniture</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-wallpaper">
+										<label for="maps-tab-wallpaper">Wallpaper</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-flooring">
+										<label for="maps-tab-flooring">Flooring</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-nature">
+										<label for="maps-tab-nature">Nature</label>
+										
+										<input type="radio" name="maps-tabset" id="maps-tab-museum">
+										<label for="maps-tab-museum">Museum Pieces</label>
+									</div>
+									
+									<div class="tab-panels">
+										<section id="maps-sec-options" class="tab-panel">
+											<div class="maps-options-container">
+												<div class="option-list">
+													<h4>Options</h4>
+													
+													<div class="option-group">
+														<label title="Maximize the size of the planner. You can press F at any time to toggle this.">
+															<input type="checkbox" id="maps-option-fullView" name="maps-fullView" value="true"> Full Planner View (F)
+														</label><br/>
+														<div class="sublist">
+															<label title="In full planner view, place the sidebar on the right instead of the left.">
+																<input type="checkbox" id="maps-option-sidebarRight" name="maps-sidebarRight" class="option" value="true"> Sidebar On Right
+															</label><br/>
+														</div>
+													</div>
+													
+													<div class="option-group">
+														<label title="Allow placing features even in places where they aren't normally allowed.">
+															<input type="checkbox" id="maps-option-allowPlacingAnywhere" name="maps-allowPlacingAnywhere" class="option" value="true"> Allow Placing Anywhere
+														</label><br/>
+														<label title="Allow moving features that aren't normally movable. This only affects ordinary features, not special sprites or map terrain.">
+															<input type="checkbox" id="maps-option-allowMovingAnything" name="maps-allowMovingAnything" class="option" value="true"> Allow Moving Anything
+														</label><br/>
+														<label title="Allow erasing features that aren't normally erasable. This only affects ordinary features, not special sprites or map terrain.">
+															<input type="checkbox" id="maps-option-allowErasingAnything" name="maps-allowErasingAnything" class="option" value="true"> Allow Erasing Anything
+														</label><br/>
+														<label title="Disables randomizations during placement, such as horizontal flipping and path variations.">
+															<input type="checkbox" id="maps-option-noRandom" name="maps-noRandom" class="option" value="true"> Disable Randomizations
+														</label><br/>
+													</div>
+													
+													<div class="option-group">
+														<label title="Hides the layers above where features are drawn.">
+															<input type="checkbox" id="maps-option-hideFront" name="maps-hideFront" class="option" value="true"> Hide Foreground
+														</label><br/>
+														<label title="Hides the layers above where features are drawn, only in the region around your cursor.">
+															<input type="checkbox" id="maps-option-hideFrontNearCursor" name="maps-hideFrontNearCursor" class="option" value="true"> Hide Foreground Near Cursor
+														</label><br/>
+														<label title="Makes all grass invisible, allowing you to see what's beneath it. The grass is still present can be interacted with like normal, but you won't see it.">
+															<input type="checkbox" id="maps-option-hideGrass" name="maps-hideGrass" class="option" value="true"> Hide Grass
+														</label><br/>
+														<label title="Hides sprites that are not part of the feature data. This includes things like the bus, traveling cart, and fish splash hooks.">
+															<input type="checkbox" id="maps-option-hideSpecial" name="maps-hideSpecial" class="option" value="true"> Hide Special Sprites
+														</label><br/>
+													</div>
+													
+													<div class="option-group">
+														<label title="Marks artifact spots and seed spots.">
+															<input type="checkbox" id="maps-option-highlight-artifactSpot" name="maps-highlight-artifactSpot" class="option" value="true"> Mark Artifact Spots
+														</label><br/>
+														<label title="Marks forageable items that can be picked up.">
+															<input type="checkbox" id="maps-option-highlight-forageable" name="maps-highlight-forageable" class="option" value="true"> Mark Forageables
+														</label><br/>
+														<label title="Marks crops that are ready to be harvested.">
+															<input type="checkbox" id="maps-option-highlight-harvest" name="maps-highlight-harvest" class="option" value="true"> Mark Harvestable Crops
+														</label><br/>
+													</div>
+													
+													<div class="option-group">
+														<label title="Marks where fish splashes (&quot;bubbles&quot; or a fish frenzy) are occurring at the current time, if any.">
+															<input type="checkbox" id="maps-option-showSplashes" name="maps-showSplashes" class="option" value="true"> Show Fish Splashes
+														</label><br/>
+														<label title="Displays gridlines, to help with alignment and tile counting.">
+															<input type="checkbox" id="maps-option-showGrid" name="maps-showGrid" class="option" value="true"> Show Grid (Ctrl + G)
+														</label><br/>
+														<label title="Highlights areas that take you to another map, and allows clicking on them.">
+															<input type="checkbox" id="maps-option-showWarps" name="maps-showWarps" class="option" value="true"> Show Warps
+														</label><br/>
+													</div>
+													
+													<div class="option-group">
+														<label title="Highlights tiles that can affect a bee house's honey.&#10;&#10;The type of honey a bee house produces is determined by the nearest fully-grown flower (taxicab distance) in its domain. If there is a tie for closest, priority goes to the leftmost flower if one is left of the bee house, or the rightmost flower otherwise. If two flowers are still tied, priority goes to the southern one.">
+															<input type="checkbox" id="maps-option-highlight-beeHouse" name="maps-highlight-beeHouse" class="option" value="true"> Survey Bee Houses
+														</label><br/>
+														<label title="Highlights tiles that can be dug with a hoe. This ignores features and only looks at the land itself.">
+															<input type="checkbox" id="maps-option-diggable" name="maps-diggable" class="option" value="true"> Survey Diggable Land
+														</label><br/>
+														<label title="Highlights tiles where crops can be planted. This ignores features and only looks at the land itself.">
+															<input type="checkbox" id="maps-option-farmable" name="maps-farmable" class="option" value="true"> Survey Farmable Land
+														</label><br/>
+														<label title="Highlights fishable water, with colors indicating the water's depth.&#10;&#10;Red/Purple = Maximum quality fish.&#10;Purple = Does not spawn random fish splashes (&quot;bubbles&quot;).">
+															<input type="checkbox" id="maps-option-fishingDistance" name="maps-fishingDistance" class="option" value="true"> Survey Fishing Depth
+														</label><br/>
+														<label title="Highlights areas where normal forageable items can naturally spawn overnight.&#10;&#10;Red = Can spawn forageable items.&#10;Purple = Can spawn forageable items (half the normal rate).">
+															<input type="checkbox" id="maps-option-forageableSpawning" name="maps-forageableSpawning" class="option" value="true"> Survey Forageable Land
+														</label><br/>
+														<div class="sublist">
+															<label title="Calculate the results as if any impeding features were removed when possible.">
+																<input type="checkbox" id="maps-option-forageableSpawningIgnoreErasable" name="maps-forageableSpawningIgnoreErasable" class="option" value="true"> Ignore Removable Obstructions
+															</label><br/>
+														</div>
+														<label title="Highlights the areas that must be free of obstructions for the fruit trees to grow. The highlighted areas of two fruit trees must not overlap.&#10;&#10;Allowed: Buildings, grass, artifact/seed spots, and map terrain.">
+															<input type="checkbox" id="maps-option-highlight-fruitTree" name="maps-highlight-fruitTree" class="option" value="true"> Survey Fruit Trees
+														</label><br/>
+														<label title="Highlights tiles from which Junimos can harvest crops.">
+															<input type="checkbox" id="maps-option-highlight-junimoHut" name="maps-highlight-junimoHut" class="option" value="true"> Survey Junimo Huts
+														</label><br/>
+														<label title="Highlights tiles where paddy crops (rice shoots and taro tubers) can be planted and receive natural irrigation. This ignores features and only looks at the land itself.">
+															<input type="checkbox" id="maps-option-paddies" name="maps-paddies" class="option" value="true"> Survey Paddy Land
+														</label><br/>
+														<label title="Highlights tiles that are protected against crows.">
+															<input type="checkbox" id="maps-option-highlight-scarecrow" name="maps-highlight-scarecrow" class="option" value="true"> Survey Scarecrows
+														</label><br/>
+														<label title="Highlights tiles that are automatically watered by sprinklers.">
+															<input type="checkbox" id="maps-option-highlight-sprinkler" name="maps-highlight-sprinkler" class="option" value="true"> Survey Sprinklers
+														</label><br/>
+														<label title="Highlights areas where wild crops (spring onions and ginger) can naturally spawn overnight.&#10;&#10;Green = Can spawn wild crops.&#10;Yellow = Can spawn wild crops (rare).">
+															<input type="checkbox" id="maps-option-cropSpawning" name="maps-cropSpawning" class="option" value="true"> Survey Wild Crop Land
+														</label><br/>
+														<div class="sublist">
+															<label title="Calculate the results as if any impeding features were removed when possible.">
+																<input type="checkbox" id="maps-option-cropSpawningIgnoreErasable" name="maps-cropSpawningIgnoreErasable" class="option" value="true"> Ignore Removable Obstructions
+															</label><br/>
+														</div>
+														<label title="When hovering over a feature, this highlights the tiles in its domain, similar to enabling the corresponding Survey option for that feature.">
+															<input type="checkbox" id="maps-option-highlightHover" name="maps-highlightHover" class="option" value="true"> Survey Upon Hover
+														</label><br/>
+													</div>
+													
+													<div class="option-group">
+														<label class="field-option">
+															<span><select id="maps-option-zoom" name="maps-zoom" class="option">
+																<option value="16">16:1</option>
+																<option value="8">8:1</option>
+																<option value="4">4:1</option>
+																<option value="2">2:1</option>
+																<option value="1">1:1</option>
+																<option value="0.5">1:2</option>
+																<option value="0.25">1:4</option>
+																<option value="0.125">1:8</option>
+																<option value="0.0625">1:16</option>
+															</select></span>
+															<span>Zoom</span>
+															<!--
+															<span><input type="number" id="maps-option-zoom" name="maps-zoom" class="option" min=".0625" step="any" list="maps-option-zoom-list"></span>
+															<span>Zoom</span>
+															<datalist id="maps-option-zoom-list">
+																<option value="8"></option>
+																<option value="4"></option>
+																<option value="2"></option>
+																<option value="1"></option>
+																<option value=".5"></option>
+																<option value=".25"></option>
+															</datalist>
+															-->
+														</label>
+														<label class="field-option">
+															<span><input type="number" id="maps-option-undoSize" name="maps-undoSize" class="option" min="0" step="1"></span>
+															<span>Undo History Steps</span>
+														</label>
+													</div>
+													
+													<h4>Advanced Options</h4>
+													
+													<div class="option-group">
+														<label title="Provides more detailed output in the Info tab.">
+															<input type="checkbox" id="maps-option-verboseInfo" name="maps-verboseInfo" class="option" value="true"> Verbose Inspector Info
+														</label><br/>
+														<label title="Disables normal mouse interaction, so mouse clicks go directly to the sprite elements instead. Useful if you're trying to select sprites in the browser's DOM inspector.">
+															<input type="checkbox" id="maps-option-passClicksToSprites" name="maps-passClicksToSprites" class="option" value="true"> Pass Clicks To Sprites
+														</label><br/>
+													</div>
+												</div>
+												
+												<div class="plan-manager">
+													<h4>Planner</h4>
+													<input type="text" id="maps-plan-name" placeholder="Plan Name"><br/><br/>
+													<button type="button" id="maps-save-plan">Save Plan</button>
+													<button type="button" id="maps-export-plan" title="Export the current plan as a JSON file.&#10;&#10;Technical information: Most of the data is packed into the &quot;data&quot; value, as a base64-encoded raw deflate compression stream of JSON data.">Export JSON</button>
+													<button type="button" id="maps-import-plan">Import JSON</button>
+													
+													<h4>Saved Plans</h4>
+													<select id="maps-select-plan" style="width: 100%;">
+														<option value="">(Current game state)</option>
+													</select><br/><br/>
+													<button type="button" id="maps-load-plan">Load Plan</button>
+													<button type="button" id="maps-delete-plan">Delete Plan</button>
+													
+													<h4>Share</h4>
+													<button type="button" id="maps-save-image">Download Image</button>
+												</div>
+											</div>
+											
+											<div class="maps-options-container">
+												<div class="option-list">
+													<h4>Game State</h4>
+													
+													<div id="maps-gamestategroup-general" class="option-group"></div>
+													<div id="maps-gamestategroup-location" class="option-group"></div>
+												</div>
+											</div>
+										</section>
+										
+										<section id="maps-sec-info" class="tab-panel">
+											<div id="maps-color-picker" class="maps-info-section hidden">
+												<h4>Color</h4>
+												
+												<div class="component component-h">
+													<span class="range"><span class="range-marker"></span></span>
+													<input type="number" step="1" min="0" max="359" id="maps-picker-input-h">
+												</div>
+												<div class="component component-s">
+													<span class="range"><span class="range-marker"></span></span>
+													<input type="number" step="1" min="0" max="100" id="maps-picker-input-s">
+												</div>
+												<div class="component component-l">
+													<span class="range"><span class="range-marker"></span></span>
+													<input type="number" step="1" min="0" max="100" id="maps-picker-input-l">
+												</div>
+												
+												<button type="button" id="maps-reset-color">Use Default</button>
+											</div>
+											<div id="maps-out-inspect" class="maps-info-section"></div>
+											<div id="maps-out-mapinfo" class="maps-info-section"></div>
+										</section>
+										
+										<section id="maps-sec-search" class="tab-panel">
+											<div id="maps-out-catalogue-search" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-crops" class="tab-panel">
+											<div id="maps-out-catalogue-crops" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-foraging" class="tab-panel">
+											<div id="maps-out-catalogue-foraging" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-equipment" class="tab-panel">
+											<div id="maps-out-catalogue-equipment" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-buildings" class="tab-panel">
+											<div id="maps-out-catalogue-buildings" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-decoration" class="tab-panel">
+											<div id="maps-out-catalogue-decoration" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-furniture" class="tab-panel">
+											<div id="maps-out-catalogue-furniture" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-wallpaper" class="tab-panel">
+											<div id="maps-out-catalogue-wallpaper" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-flooring" class="tab-panel">
+											<div id="maps-out-catalogue-flooring" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-nature" class="tab-panel">
+											<div id="maps-out-catalogue-nature" class="map-catalogue-tab"></div>
+										</section>
+										
+										<section id="maps-sec-museum" class="tab-panel">
+											<div id="maps-out-catalogue-museum" class="map-catalogue-tab"></div>
+										</section>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div id="maps-data">
+							<svg id="maps-filter-effects" style="position: absolute; visibility: hidden; pointer-events: none; top: 0;">
+								<filter id="maps-filter-move" x="0" y="0">
+									<feColorMatrix type="matrix" color-interpolation-filters="sRGB" values="
+										0 0 0 0 0
+										.3333 .3333 .3333 0 0
+										0 0 0 0 0
+										0 0 0 .8 0
+									" />
+								</filter>
+								<filter id="maps-filter-copy" x="0" y="0">
+									<feColorMatrix type="matrix" color-interpolation-filters="sRGB" values="
+										.1667 .1667 .1667 0 0
+										.1667 .1667 .1667 0 0
+										.6667 .6667 .6667 0 0
+										0 0 0 1 0
+									" />
+								</filter>
+								<filter id="maps-filter-erase" x="0" y="0">
+									<feColorMatrix type="matrix" color-interpolation-filters="sRGB" values="
+										.3333 .3333 .3333 0 0
+										0 0 0 0 0
+										0 0 0 0 0
+										0 0 0 .8 0
+									" />
+								</filter>
+								<filter id="maps-filter-transform" x="0" y="0">
+									<feColorMatrix type="matrix" color-interpolation-filters="sRGB" values="
+										.6667 .6667 .6667 0 0
+										.6667 .6667 .6667 0 0
+										0 0 0 0 0
+										0 0 0 1 0
+									" />
+								</filter>
+								<filter id="maps-filter-paint" x="0" y="0">
+									<feColorMatrix type="matrix" color-interpolation-filters="sRGB" values="
+										.6667 .6667 .6667 0 0
+										0 0 0 0 0
+										.6667 .6667 .6667 0 0
+										0 0 0 1 0
+									" />
+								</filter>
+							</svg>
+						</div>
+					</section>
+					
+					<section id="sec-mines" class="tab-panel">
+						<h3>Special Mine Floors</h3>
+						<p class="intro" id="mines-intro">This calendar shows the prediction of various special levels in 
+						<a href="https://stardewvalleywiki.com/The_Mines">the Mines</a> and <a href="https://stardewvalleywiki.com/Skull_Cavern">Skull Cavern.</a></p>
+						<ul>
+							<li>Mushroom levels respawn in version 1.3 and earlier, but starting in 1.4, mushrooms will only appear on your first visit. Mushroom chances are different in the hardmode mines and the predictor will use the current state of the mines for all predictions.</li>
+							<li>Monster and slime infestations are persistent in all versions and can be revisited multiple times per day.</li>
+							<li>Quarry levels were added in 1.4; this is when the level uses the gray quarry mine tileset and spawns grey &amp; brown slimes as well as <a href="https://stardewvalleywiki.com/Haunted_Skull">Haunted Skulls</a>. These can only happen if the quarry itself has been unlocked and will override other types of infestations, so the predictor only calculates them if the save has quarry access.</li>
+							<li>Dinosaur levels were also added in 1.4; these have a grassy tileset and are primarily inhabited by <a href="https://stardewvalleywiki.com/Pepper_Rex">Pepper Rex</a>. They can only occur in the Skull Cavern, and the predictor will check up to level 500 for them. Note that this prediction is not 100% accurate because the logic the game uses to determine which map to use for a particular level in the skull cavern uses a different (unpredictable) RNG and certain maps are not allowed to be Dinosaur levels.</li>
+						</ul>
+						<!-- divs inside of fieldsets because of Chrome bugs with flex display -->
+						<fieldset id="mines-buttons"><div class="buttons">
+							<button id="mines-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="mines-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="mines-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="mines-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="mines-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-mines"> </output>
+					</section>
+					
+					<section id="sec-minechest" class="tab-panel">
+						<h3>Mine Chests</h3>
+						<p class="intro" id="minechest-intro">Starting in version 1.5, one of the advanced startup options allows for randomized
+						loot in the mine reward chests. This loot can be predicted and is listed below. Note that even when this option is used, some of the chests still only have one possible reward.</p>
+						<output id="out-minechest"> </output>
+					</section>
+					
+					<section id="sec-mystery" class="tab-panel">
+						<h3>Mystery Boxes</h3>
+						<p class="intro" id="mystery-intro">Predicted results from opening all types of
+						Mystery Boxes at Clint's
+						<a href="https://stardewvalleywiki.com/Blacksmith">Blacksmith Shop</a>. The number of boxes opened is a cumulative count across all types. Results can
+						be browsed twenty at a time or searched using a case-insensitive substring (regular expression wildcards are allowed.)
+						Note that in multiplayer, each player's box count is tracked separately; the browse results are initially set and highlighted
+						based on the host's count.</p>
+						<p>The <span class="book">Book of Mysteries</span> becomes more and more likely as more boxes are opened until you get one. The app will base its predictions on whether or not the save indicates that the host has gotten a book, and this can be overridden with a URL parameter. One result of this is that a long-term search if the book hasn't yet been found will eventually be dominated by only the book.</p>
+						<p>Golden Mystery Boxes have a slightly different drop pool if the player has unlocked the farming mastery perk. Because of the order of the random rolls, this results in the item chosen usually being different. In this case we handle the difference by having 2 separate Golden Mystery Box result lists.</p>
+						<p>If the result is "Seasonal Seeds" the type of seed is an unpredictable roll based on current season (with all possible in winter). Possibilities include Cauliflower, Green Bean, Parsnip, Potato, Pepper, Radish, Wheat, Corn, Eggplant, Artichoke, and Pumpkin.</p>
+						<p>If the result is "Raccoon Seeds" the type of seed is the same as you would get from seed dig spots on that day. Possibilities include Carrot, Summer Squash, Broccoli, and Powdermelon.</p>
+						<p class="note" id="mystery-note"></p>
+						<fieldset id="mystery-player">
+							Select Player: <select id="mystery-player-select" class="player">
+							</select><br />
+						</fieldset>
+						<fieldset id="mystery-search">
+							<input type="text" id="mystery-search-text" class="search">
+							<button id="mystery-search-button" type="button" class="search">Search</button><br />
+							Search Range: <select id="mystery-search-range">
+								<option value="100">100 boxes</option>
+								<option value="200" selected>200 boxes</option>
+								<option value="500">500 boxes</option>
+								<option value="1000">1000 boxes</option>
+							</select><br />
+							<input type="checkbox" id="mystery-search-all"> Start search from first box instead of current box
+						</fieldset>
+						<fieldset id="mystery-buttons"><div class="buttons">
+							<button id="mystery-prev-100" type="button" class="browse">&lt;&lt; Previous 100</button>
+							<button id="mystery-prev" type="button" class="browse">&lt; Previous 20</button>
+							<button id="mystery-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="mystery-next" type="button" class="browse">Next 20 &gt;</button>
+							<button id="mystery-next-100" type="button" class="browse">Next 100 &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-mystery"> </output>
+					</section>
+					
+					<section id="sec-night" class="tab-panel">
+						<h3>Night Events</h3>
+						<p class="intro" id="night-intro">This calendar shows potential
+						<a href="https://stardewvalleywiki.com/Random_Events">overnight events</a> on the farm. These events will not occur if there
+						is a player wedding the next day, and they will also be overridden by a restoration event from the completion of a
+						<a href="https://stardewvalleywiki.com/Bundles">full Community Center room</a> or a
+						<a href="https://stardewvalleywiki.com/Joja_Community_Development_Form">Joja Community Development</a> purchase.
+						Most of these events also have other checks they must pass to actually trigger (such as finding a suitable location), 
+						so <span class="strong">they are not 100% guaranteed</span>; in particular the 
+						<a href="https://stardewvalleywiki.com/Strange_Capsule">strange capsule</a> and stone owl events were 
+						<a href="https://www.reddit.com/r/StardewValley/comments/5aj878/the_last_mystery_and_a_technical_explanation/">extremely rare</a>
+						in earlier versions of the game, and in Stardw Valley 1.5.3 or later the strange capsule will only trigger once per save.</p>
+						<p>In version 1.6, there is a new windstorm event which occurs sometime after the Greenhouse repair; the possibility of this event changes future event predictions because it causes an additional random roll even after it has completed. Any day which could be the windstorm will be marked with a stump icon on the calendar. Additionally, the app will try to detect in the save whether the Greenhouse has been restored (this can also be set with a URL parameter) and use that status when predicting other events. Be careful when looking ahead for future events if repairs have not been completed yet.</p>
+						<p class="note">Notes: The app may misidentify the type of event in version 1.2 if the farmer has the possibility of
+						having more children.</p>
+						<fieldset id="night-buttons"><div class="buttons">
+							<button id="night-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="night-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="night-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="night-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="night-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-night"> </output>
+					</section>
+					
+					<section id="sec-notes" class="tab-panel">
+						<h3>Notes</h3>
+						<p class="intro" id="notes-intro">This is an area for you to write custom notes for your playthrough. The notes are stored in your browser's local storage and are specific to the game seed.</p>
+						<fieldset id="notes-buttons"><div class="buttons">
+							<button id="notes-prev-week" type="button" class="browse">&lt;&lt; Previous Week</button>
+							<button id="notes-prev-day" type="button" class="browse">&lt; Previous Day</button>
+							<button id="notes-reset" type="button" class="browse">Reset Day</button>
+							<button id="notes-next-day" type="button" class="browse">Next Day &gt;</button>
+							<button id="notes-next-week" type="button" class="browse">Next Week &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-notes"> </output>
+					</section>
+					
+					<section id="sec-prize" class="tab-panel">
+						<h3>Prize Ticket Machine</h3>
+						<p class="intro" id="prize-intro">This tab shows predicted rewards for the prize ticket machine in the mayor's house.</p>
+						<p>If the result is "Raccoon Seeds" the type of seed is the same as you would get from seed dig spots on that day. Possibilities include Carrot, Summer Squash, Broccoli, and Powdermelon.</p>
+						<p class="note" id="prize-note"></p>
+						<fieldset id="prize-player">
+							Select Player: <select id="prize-player-select" class="player">
+							</select><br />
+						</fieldset>
+						<!--
+						<fieldset id="prize-search">
+							<input type="text" id="prize-search-text" class="search">
+							<button id="prize-search-button" type="button" class="search">Search</button><br />
+							Search Range: <select id="prize-search-range">
+								<option value="100">100 boxes</option>
+								<option value="200" selected>200 boxes</option>
+								<option value="500">500 boxes</option>
+								<option value="1000">1000 boxes</option>
+							</select><br />
+							<input type="checkbox" id="prize-search-all"> Start search from first box instead of current box
+						</fieldset>
+						-->
+						<fieldset id="prize-buttons"><div class="buttons">
+							<button id="prize-prev-100" type="button" class="browse">&lt;&lt; Previous 100</button>
+							<button id="prize-prev" type="button" class="browse">&lt; Previous 20</button>
+							<button id="prize-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="prize-next" type="button" class="browse">Next 20 &gt;</button>
+							<button id="prize-next-100" type="button" class="browse">Next 100 &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-prize"> </output>
+					</section>
+					
+					<section id="sec-raccoon" class="tab-panel">
+						<h3>Raccoon Bundles</h3>
+						<p class="intro" id="raccoon-intro">This tab shows predictions for both what the raccoons will ask for and what reward they will give upon completion. Their requests will often vary by season so the app will list all 4 season options when that happens.</p>
+						<p>Some rewards have an option of "Next unshipped item". If at least 100 Golden Walnuts have been collected and Full Shipment has not been achieved, this reward will be the first unshipped item encountered on the Shipping Collections tab; otherwise it will be four Mystery Boxes.</p>
+						<p class="note" id="raccoon-note"></p>
+						<!--
+						<fieldset id="raccoon-search">
+							<input type="text" id="raccoon-search-text" class="search">
+							<button id="raccoon-search-button" type="button" class="search">Search</button><br />
+							Search Range: <select id="raccoon-search-range">
+								<option value="100">100 boxes</option>
+								<option value="200" selected>200 boxes</option>
+								<option value="500">500 boxes</option>
+								<option value="1000">1000 boxes</option>
+							</select><br />
+							<input type="checkbox" id="raccoon-search-all"> Start search from first box instead of current box
+						</fieldset>
+						-->
+						<fieldset id="raccoon-buttons"><div class="buttons">
+							<button id="raccoon-prev-50" type="button" class="browse">&lt;&lt; Previous 50</button>
+							<button id="raccoon-prev" type="button" class="browse">&lt; Previous 10</button>
+							<button id="raccoon-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="raccoon-next" type="button" class="browse">Next 10 &gt;</button>
+							<button id="raccoon-next-50" type="button" class="browse">Next 50 &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-raccoon"> </output>
+					</section>
+					
+					<!--
+					<section id="sec-resort" class="tab-panel">
+						<h3>Resort Visitors</h3>
+						<p class="intro" id="resort-intro">This attempts to predict which NPCs will visit the Island Resort on a given day. These are not 100% guaranteed as they won't visit when it is raining on the Island or if some other unpredictable things have happened (such as being "invisible" due to a heart event.) And obviously it is meaningless until the player visits the Island and builds the resort itself.</p>
+						<fieldset id="resort-buttons"><div class="buttons">
+							<button id="resort-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="resort-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="resort-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="resort-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="resort-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-resort"> </output>
+					</section>
+					-->
+					
+					<section id="sec-sandy" class="tab-panel">
+						<h3>Sandy's Oasis Shop Stock</h3>
+						<p class="intro" id="sandy-intro">Partial inventory list for <a href="https://stardewvalleywiki.com/Sandy">Sandy</a> who sells items
+						in the <a href="https://stardewvalleywiki.com/Oasis">Oasis shop</a>. While her stock is mostly static, beginning in version 1.4 there
+						is a random shirt sold every day; this shirt choice is predictable and listed below. The shirt is always 1000g.
+						Results can be browsed by week or searched using a case-insensitive substring (regular expression wildcards are allowed.)</p>
+						<p>The app identifies shirts which cannot be obtained through <a href="https://stardewvalleywiki.com/Tailoring">tailoring</a>. Those which can be chosen at character creation are marked with their choice number while those that cannot be chosen at creation are marked <span class="note">Oasis exclusive</span>. Both types can probably be found as random drops in Stardew 1.6.</p>
+						<fieldset id="sandy-search">
+							<input type="text" id="sandy-search-text" class="search">
+							<button id="sandy-search-button" type="button" class="search">Search</button><br />
+							Search Range: <select id="sandy-search-range">
+								<option value="1">1 year</option>
+								<option value="2" selected>2 years</option>
+								<option value="3">3 years</option>
+								<option value="5">5 years</option>
+								<option value="10">10 years</option>
+							</select><br />
+							<input type="checkbox" id="sandy-search-all"> Start search from Spring 1, Year 1 instead of current day
+						</fieldset>
+						<fieldset id="sandy-buttons"><div class="buttons">
+							<button id="sandy-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="sandy-prev-week" type="button" class="browse">&lt; Previous Week</button>
+							<button id="sandy-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="sandy-next-week" type="button" class="browse">Next Week &gt;</button>
+							<button id="sandy-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-sandy"> </output>
+					</section>
+					
+					<section id="sec-schedules" class="tab-panel">
+						<h3>Schedules</h3>
+						<p class="intro" id="schedules-intro"></p>
+						<p class="note" id="schedules-note"></p>
+						<fieldset id="sandy-search">
+							<select id="schedules-character">
+							</select>
+						</fieldset>
+						<output id="out-schedules"> </output>
+						<div id="async-schedules"></div>
+					</section>
+					
+					<section id="sec-skills" class="tab-panel">
+						<h3>Skills</h3>
+						<p class="intro" id="skills-intro"></p>
+						<p class="note" id="skills-note"></p>
+						<output id="out-skills"> </output>
+					</section>
+					
+					<section id="sec-statue" class="tab-panel">
+						<h3>Mastery Statue Blessings</h3>
+						<p class="intro" id="statue-intro">This calendar shows the prediction of the two mastery statues. For the Statue of Blessings, there may be two possibilities listed based upon whether it is raining. Traditional Festival days will also use the rain choice. If the Blessing of the Butterfly is chosen (only possible for non-rain), hovering over the "..." will show which map to check for each player. For the Statue of the Dwarf King there are always two choices for each player to pick from and those choices are listed here.</p>
+						<p class="note" id="staute-note"></p>
+						<fieldset id="statue-buttons"><div class="buttons">
+							<button id="statue-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="statue-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="statue-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="statue-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="statue-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-statue"> </output>
+					</section>
+					
+					<section id="sec-train" class="tab-panel">
+						<h3>Train Schedule</h3>
+						<p class="intro" id="train-intro">This calendar shows the predicted train spawns on the
+						<a href="https://stardewvalleywiki.com/Railroad">Railroad</a> map. The time of the train can be predicted, but the type of train cars
+						and amount of dropped items cannot.</p> 
+						<p class="note">Note that a train will not spawn on the first day after a save is loaded or reloaded.</p>
+						<fieldset id="train-buttons"><div class="buttons">
+							<button id="train-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="train-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="train-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="train-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="train-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-train"> </output>
+					</section>
+					
+					<section id="sec-cart" class="tab-panel">
+						<h3 id="cart-title">Traveling Merchant Cart/Boat</h3>
+						<p class="intro" id="cart-intro">Inventory list for the <a href="https://stardewvalleywiki.com/Traveling_Cart">traveling
+						merchant</a>. The merchant operates a cart in <a href="https://stardewvalleywiki.com/Cindersap_Forest">Cindersap Forest</a>
+						every Friday and Sunday (6am - 8pm) and also appears at various festivals. Results can be browsed by week (all festivals
+						are treated as a separate week) or searched using a case-insensitive substring (regular expression wildcards are allowed.)</p>
+						<p>Stardew 1.6 drastically changed how the items are selected. Predictor does a pretty good job for an unmodded save but still
+						has some issues such as Furniture prices and often misidentifying the random skill book when it triggers. If you play with mods
+						that add items or furniture, expect most cart predictions to become even more unreliable.</p>
+						<p class="note" id="cart-note"></p>
+						<fieldset id="cart-search">
+							<input type="text" id="cart-search-text" class="search">
+							<button id="cart-search-button" type="button" class="search">Search</button> <span id="cart-search-status"></span><br />
+							Search Range: <select id="cart-search-range">
+								<option value="7">1 week</option>
+								<option value="14">2 weeks</option>
+								<option value="28">1 month</option>
+								<option value="112">1 year</option>
+								<option value="224" selected>2 years</option>
+								<option value="336">3 years</option>
+								<option value="560">5 years</option>
+								<option value="1120">10 years</option>
+							</select><br />
+							<label><input type="checkbox" id="cart-search-all"> Start search from Spring 1, Year 1 instead of current day</label><br/>
+							<label><input type="checkbox" id="cart-results-by-day"> Search results by day</label><br/>
+							<hr/>
+							<label><input type="checkbox" id="cart-seed-finder"> Seed finder mode (advanced)</label> |
+							<label>Seed Start: <input type="number" id="cart-seed" value="0" size="10" step="1000"></label> |
+							<label>Seed Range: <input type="number" id="cart-seed-range" value="1000" size="7"></label><br/><br/>
+							Seed Filter format: One regex per line; every regex must match the search results in order for the seed to appear in the final results. Data format the regex matches against: "item 1 name~quantity~price/item 2 name~quantity~price/item 3 name~quantity~price" and so on for each item in the seed's search results.<br/>
+							<label><textarea id="cart-advanced-filter" class="search" rows="1" placeholder="Seed Filter" style="resize: both; width: 44rem; height: 3em;"></textarea></label>
+						</fieldset>
+						<fieldset id="cart-buttons"><div class="buttons">
+							<button id="cart-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="cart-prev-week" type="button" class="browse">&lt; Previous Week</button>
+							<button id="cart-reset" type="button" class="browse">Reset Browsing</button>
+							<button id="cart-next-week" type="button" class="browse">Next Week &gt;</button>
+							<button id="cart-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-cart"> </output>
+						<div id="async-cart"></div>
+					</section>
+					
+					<section id="sec-wallpaper" class="tab-panel">
+						<h3>Wallpaper from Pierre and Joja</h3>
+						<p class="intro" id="wallpaper-intro">This calendar shows the prediction of which 
+						<a href="https://stardewvalleywiki.com/Wallpaper">wallpaper</a> and <a href="https://stardewvalleywiki.com/Flooring">flooring</a>
+						items are available at Pierre's General Store and the Joja Mart. This was mainly useful for those who used a bug that caused
+						wallpaper to be interpreted as another item (which is the "equivalence" listed on the results. As of version 1.4 most (if not all) of these
+						exploits have been patched and the equivalence is now meaningless, but this tab might still be relevant for those who want to get a specific
+						wall/floor without buying the <a href="https://stardewvalleywiki.com/Catalogue">Catalogue</a>.</p>
+						<p>The app will use the CC completion status read from the save (or URL parameter) to determine whether a particular store should be shown at all.</p>
+						<p>Due to shop changes in 1.6, Pierre and Joja always sell the same wallpaper and often (but not always) sell the same flooring.</p>
+						<fieldset id="wallpaper-buttons"><div class="buttons">
+							<button id="wallpaper-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="wallpaper-prev-week" type="button" class="browse">&lt; Previous Week</button>
+							<button id="wallpaper-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="wallpaper-next-week" type="button" class="browse">Next Week &gt;</button>
+							<button id="wallpaper-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-wallpaper"> </output>
+					</section>
+					
+					<section id="sec-greenrain" class="tab-panel">
+						<h3>Green Rain</h3>
+						<p class="intro" id="greenrain-intro">Starting in Stardew 1.6, Pelican Town weather can be partially predicted. If the app shows "Rain" it could also be (unpredictably) upgraded to a Storm, and if the app shows "Sun" it could be (unpredictably) upgraded into Wind/Snow depending on season. Ginger Island weather is not predictable.</p>
+						<p class="note" id="greenrain-note"></p>
+						<fieldset id="greenrain-buttons"><div class="buttons">
+							<button id="greenrain-prev-year" type="button" class="browse">&lt;&lt; Previous Year</button>
+							<button id="greenrain-prev-month" type="button" class="browse">&lt; Previous Month</button>
+							<button id="greenrain-reset" type="button" class="browse">Reset Calendar</button>
+							<button id="greenrain-next-month" type="button" class="browse">Next Month &gt;</button>
+							<button id="greenrain-next-year" type="button" class="browse">Next Year &gt;&gt;</button>
+						</div></fieldset>
+						<output id="out-greenrain"> </output>
+					</section>
+					
+					<section id="sec-winterstar" class="tab-panel">
+						<h3>Feast of the Winter Star Gift Assignments</h3>
+						<p class="intro" id="winterstar-intro">This shows the secret gift assignments for the
+						<a href="https://stardewvalleywiki.com/Feast_of_the_Winter_Star">Winter Star festival</a>. The actual gift(s) the player(s) will receive
+						cannot be reliably predicted, but a list of all the possibilities is provided. Starting with version 1.5, the presence of 
+						<a href="https://stardewvalleywiki.com/Leo">Leo</a> may affect the outcome; the app will predict based upon Leo's current
+						status.</p>
+						<p class="note" id="winterstar-note"></p>
+						<fieldset id="winterstar-buttons"><div class="buttons">
+							<button id="winterstar-prev" type="button" class="browse">&lt; Previous Year</button>
+							<button id="winterstar-reset" type="button" class="browse">Reset</button>
+							<button id="winterstar-next" type="button" class="browse">Next Year &gt;</button>
+						</div></fieldset>
+						<output id="out-winterstar"> </output>
+					</section>
+				</div>
+			</div>
+		</div>
+		
+		<div id="changelog" class="panel">
+			<noscript><span class="error">Javascript appears to be unsupported by or disabled in your browser. Stardew Predictor will not work without it.</span></noscript>
+			<h2 id="sec_changelog">Changelog</h2>
+			<ul>
+				<li>20 Apr  2024 - v5.0.8 - Fixed advanced usage breaking after last update; better mp sanity-checking</li>
+				<li>18 Apr  2024 - v5.0.7 - One more seed overflow fix, changes for patch 1.6.4, support for compressed Switch saves</li>
+				<li> 7 Apr  2024 - v5.0.6 - Variety of PR bugfixes</li>
+				<li> 6 Apr  2024 - v5.0.5 - Bugfix for invalid ID in URL; marked Sandy shirts that are otherwise hard to acquire</li>
+				<li> 4 Apr  2024 - v5.0.4 - Bugfixes for Prize Tickets, first 10 mystery boxes, and Calico Jack dealer draws</li>
+				<li>30 Mar  2024 - v5.0.3 - Finally added slightly more friendly error-handling</li>
+				<li>28 Mar  2024 - v5.0.2 - Fixed precision loss bug in enchantment code</li> 
+				<li>27 Mar  2024 - v5.0.1 - Update cart item lists for 1.6.3 patch</li> 
+				<li>26 Mar  2024 - v5.0.0 - Support for Stardew Valley 1.6</li> 
+				<li>15 Jan  2021 - v4.0.4 - Updating Night event chances for Stardew Valley 1.5.3</li>
+				<li> 9 Jan  2021 - v4.0.3 - No code changes, only clarifications on some mechanics.</li>
+				<li>30 Dec  2020 - v4.0.2 - Made geode fix only apply to 1.5 saves</li>
+				<li>28 Dec  2020 - v4.0.1 - Fixed geode predictions</li>
+				<li>22 Dec  2020 - v4.0   - Initial support for Stardew Valley 1.5</li>
+				<li>24 Jul  2020 - v3.1.3 - Updated forum link in footer</li>
+				<li> 6 Mar  2020 - v3.1.2 - Fixed Krobus search</li>
+				<li> 1 Feb  2020 - v3.1.1 - Fixed one of the white eggs in the cart prediction being incorrectly listed as brown. (Thanks rickselby)</li>
+				<li>29 Dec  2019 - v3.1.0 - Added Skull Cave Dino levels to Mine info and a new tab for Garbage Can loot; also some fixes and formatting changes</li>
+			</ul>
+			<h3>Older changes</h3>
+			<div id="changelog_old" class="collapsible">
+				<button id="changelog_toggle" type="button">Show</button>
+				<ul class="initial_hide">
+					<li>13 Dec  2019 - v3.0.3 - Another small version error regarding artifact troves in search results</li>
+					<li> 7 Dec  2019 - v3.0.2 - Version detection changed again to handle semver like 1.4.2</li>
+					<li>30 Nov  2019 - v3.0.1 - Version detection should now properly identify day one 1.4 saves</li>
+					<li>26 Nov  2019 - v3.0   - Support for Stardew Valley 1.4</li>
+					<li> 5 July 2019 - v2.2.1 - Fixed a wiki link error.</li>
+					<li>30 Jan  2019 - v2.2   - Improved support for iOS save files</li>
+					<li>24 Oct  2018 - v2.1   - Added Wallpaper predictions and moved images to spritesheets</li>
+					<li> 3 Oct  2018 - v2.0.2 - Bug fixes for Winter Star processing when using URL ID parameter instead of a save</li>
+					<li> 1 Sept 2018 - v2.0.1 - Collapse older entries in changelog</li>
+					<li>20 Aug  2018 - v2.0   - Added Krobus tab (thanks ronw23 on GitHub). Better input sanitization for anti-Cat protection</li>
+					<li>18 Aug  2018 - v1.8   - Added public domain BigInteger library; MP support and fixed predictions for Winter Star 1.3</li>
+					<li>17 Aug  2018 - v1.7.1 - Added warning about broken Winter Star predictions in 1.3</li>
+					<li>17 Aug  2018 - v1.7   - Small bugfix on Geode predictions for 1.3</li>
+					<li>24 May  2018 - v1.6   - Favicon; Baby question for 1.2 save night events</li>
+					<li>23 May  2018 - v1.5.1 - Clarification in Night event intro & disclaimer about 1.2</li>
+					<li>21 May  2018 - v1.5   - Night events added; list potential Winter Star gifts.</li>
+					<li> 7 May  2018 - v1.4   - Geode counter bugfix; additional multiplayer support</li>
+					<li> 6 May  2018 - v1.3   - Traveling Merchant now includes Night Market if save is from 1.3</li>
+					<li> 4 May  2018 - v1.2   - Days Played bugfix</li>
+					<li>14 Apr  2018 - v1.1   - Train schedule added</li>
+					<li> 7 Mar  2018 - v1.0   - Full release, searching for geodes added</li>
+					<li> 4 Mar  2018 - v0.94  - Rewrite of RNG class to avoid ES2015-specific features for Pale Moon compatibility</li>
+					<li> 3 Mar  2018 - v0.93  - Indicator for geode contents which need donation</li>
+					<li>25 Feb  2018 - v0.92  - Fixing Baryte spelling and double-button processing bug</li>
+					<li>22 Feb  2018 - v0.91  - Search for Cart items, Winter Star bugfix</li>
+					<li>20 Feb  2018 - v0.9   - Beta Testing</li>
+					<li> 4 July 2017 - v0.5   - Alpha Testing</li>
+				</ul>
+			</div>
+		</div>
+		
+		<div id="footer" class="panel">
+			Stardew Apps by MouseyPounds: <a href="https://mouseypounds.github.io/stardew-checkup/">Stardew Checkup</a> ||
+			<a href="https://mouseypounds.github.io/stardew-predictor/">Stardew Predictor</a> || 
+			<a href="https://mouseypounds.github.io/stardew-fair-helper/">Stardew Fair Helper</a>
+			<br />
+			Other Stardew Valley resources: <a href="https://stardewvalley.net/">Website</a> || 
+			<a href="https://store.steampowered.com/app/413150/Stardew_Valley/">Steam Page</a> ||
+			<a href="https://www.gog.com/game/stardew_valley">GOG Page</a> ||
+			<a href="https://www.stardewvalleywiki.com/">Wiki</a> || 
+			<a href="https://forums.stardewvalley.net/index.php">Forums</a> ||
+			<a href="https://www.reddit.com/r/StardewValley">Subreddit</a> ||
+			<a href="https://discordapp.com/invite/StardewValley">Discord</a>
+			<br />
+			Stardew Valley is developed by <a href="https://twitter.com/concernedape">ConcernedApe</a> and self-published on most platforms.
+			<br />
+			Some images are cropped from in-game screenshots and their copyright is held by ConcernedApe.
+		</div>
+		
+		<svg id="shared-filter-effects" style="position: absolute; visibility: hidden; pointer-events: none; top: 0;">
+		</svg>
+	</body>
+</html>
