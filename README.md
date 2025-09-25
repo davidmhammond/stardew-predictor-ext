@@ -10,6 +10,13 @@ This app is a modified version of the awesome [Stardew Predictor](https://mousey
 * [Stardew Predictor](https://github.com/MouseyPounds/stardew-predictor) and its dependencies. These dependencies are already bundled in this repository, in the "src/stardew-predictor" directory.
 * An unpacked copy of Stardew Valley's Content directory.
 
+## Installing using git
+
+* Set up a private webserver. It only needs to be able to serve files via http: or https:.
+* In the directory you want to put the project, run `git clone --recurse-submodules https://github.com/davidmhammond/stardew-predictor-ext.git`. This creates a stardew-predictor-ext directory within your current directory.
+* Follow the "Unpacking the Content directory" instructions below to create and populate the stardew-predictor-ext/src/content directory.
+* You should now be able to access the app via the http: or https: URL that corresponds to the stardew-predictor-ext/src directory.
+
 ## Unpacking the Content directory
 
 This app makes use of Stardew Valley's data files and assets found in the Content directory. However, the files must be unpacked from their original XNB format. The following instructions were copied from the relevant [Stardew Valley Wiki page](https://stardewvalleywiki.com/Modding:Editing_XNB_files#StardewXnbHack):
@@ -66,6 +73,3 @@ I haven't set up any public website to use this app from. Doing so would require
 ## Developer Information
 
 In order to hook into the base Stardew Predictor's logic, this app relies on a slightly modified copy of the base stardew-predictor.js file, which has been placed in the Extended Stardew Predictor's app root (the src directory). This modified copy includes a few added sections of code, marked by "// BEGIN EXT ADDED" and "// END EXT ADDED" comments. All other behavioral changes are kept in separate files, in order to minimize conflicts when the base Stardew Predictor is updated.
-
-
-
