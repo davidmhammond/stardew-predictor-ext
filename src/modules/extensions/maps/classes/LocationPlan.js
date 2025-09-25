@@ -1,6 +1,6 @@
 import Feature from './Feature.js';
 
-export default class MapLocation {
+export default class LocationPlan {
 	location;
 	initialState = true;
 	appliedWallpaper = {};
