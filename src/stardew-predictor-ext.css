@@ -151,11 +151,16 @@ body {
 }
 
 .search-adorned {
+	height: calc(1em + 8px);
 	position: relative;
 }
 .search-adorned > input {
 	border: 1px solid #603000;
 	box-sizing: border-box;
+	display: block;
+	font-size: .8333em;
+	height: 100%;
+	line-height: 1.2em;
 	margin: 0;
 	padding: 2px;
 	padding-left: 24px;
