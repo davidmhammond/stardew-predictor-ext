@@ -3451,6 +3451,7 @@ export let initialize = function (core, extension) {
 	lib.updateCatalogueTabs = function (tabs) {
 		for (let [tab, groups] of Object.entries(tabs)) {
 			let $tab = $(`#maps-out-catalogue-${tab}`);
+			$tab.empty();
 			
 			for (let [group, buttons] of Object.entries(groups)) {
 				let $tabGroup = $(`<div class="maps-catalogue-group"><h4>${util.escapeHTML(group)}</h4> <div class="maps-catalogue-list"></div></div>`);
