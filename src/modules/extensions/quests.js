@@ -570,7 +570,15 @@ export let initialize = function (core, extension) {
 			}
 		}
 		
-		quest.reward = core.content.Data.Objects[quest.itemId].Price * 3;
+		let item = core.items.get(quest.itemType, quest.itemId);
+		
+		if (item.itemType === 'O' && !item.isError) {
+			quest.reward = item.data.Price * 3;
+		}
+		else {
+			quest.reward = -1;
+		}
+		
 		return quest;
 	};
 	
